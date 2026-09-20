@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "KaBasket",
+  "description": "Smart basketball shot tracker, tactical analysis, and AI vision coaching companion.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

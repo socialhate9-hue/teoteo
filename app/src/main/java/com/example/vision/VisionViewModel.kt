@@ -79,12 +79,14 @@ class VisionViewModel(application: Application) : AndroidViewModel(application) 
     private var playCountdownJob: Job? = null
 
     init {
-        // Load persisted videos on startup
-        refreshSavedVideos()
+        // Load persisted videos on startup in background
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshSavedVideos()
+        }
 
         // Periodic state refresh & session timer
-        viewModelScope.launch {
-            while (true) {
+        viewModelScope.launch(Dispatchers.Default) {
+            while (isActive) {
                 delay(100)
                 updateSnapshot()
             }

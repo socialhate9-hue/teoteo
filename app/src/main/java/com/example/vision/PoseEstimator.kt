@@ -23,9 +23,12 @@ class PoseEstimator(private val context: Context) {
     private val temporalFilter = LandmarkTemporalFilter()
 
     init {
-        setupPoseLandmarker()
+        Thread({
+            setupPoseLandmarker()
+        }, "PoseEstimator-Init").start()
     }
 
+    @Synchronized
     private fun setupPoseLandmarker() {
         try {
             val baseOptions = BaseOptions.builder()
@@ -41,12 +44,17 @@ class PoseEstimator(private val context: Context) {
                 .setNumPoses(1)
                 .build()
 
-            landmarker = PoseLandmarker.createFromOptions(context, options)
-            isReady = true
+            val landmarkInstance = PoseLandmarker.createFromOptions(context, options)
+            synchronized(this) {
+                landmarker = landmarkInstance
+                isReady = true
+            }
             Log.i(TAG, "MediaPipe PoseLandmarker initialized successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize PoseLandmarker: ${e.message}", e)
-            isReady = false
+            synchronized(this) {
+                isReady = false
+            }
         }
     }
 

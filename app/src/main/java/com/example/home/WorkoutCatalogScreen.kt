@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -462,8 +463,8 @@ private fun CompactWorkoutGridCard(
                     .aspectRatio(1.22f)
                     .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
             ) {
-                Image(
-                    painter = painterResource(id = slide.imageResId),
+                AsyncImage(
+                    model = slide.imageResId,
                     contentDescription = slide.drillName,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
@@ -683,8 +684,8 @@ private fun CompactWorkoutListCard(
                     .size(76.dp)
                     .clip(RoundedCornerShape(12.dp))
             ) {
-                Image(
-                    painter = painterResource(id = slide.imageResId),
+                AsyncImage(
+                    model = slide.imageResId,
                     contentDescription = slide.drillName,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,

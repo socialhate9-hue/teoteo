@@ -56,6 +56,8 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.outlined.Person
 import java.util.Locale
 import androidx.compose.material3.Button
@@ -99,6 +101,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -164,6 +167,23 @@ fun MainHomeScreen(
     val playerStats by com.example.stats.PlayerStatsManager.stats.collectAsState()
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var isProTutorialActive by remember { mutableStateOf(false) }
+
+    // Comprobación y activación del minitutorial del Modo PRO en el primer inicio de la app
+    LaunchedEffect(Unit) {
+        if (ProModeTutorialManager.shouldShowTutorial(context)) {
+            delay(350)
+            isProTutorialActive = true
+        }
+    }
+
+    // Escucha activaciones manuales del minitutorial (p.ej. desde el botón de ayuda)
+    LaunchedEffect(ProModeTutorialManager.isTutorialActive) {
+        if (ProModeTutorialManager.isTutorialActive) {
+            isProTutorialActive = true
+        }
+    }
 
     // Comprobación y avance de la racha diaria al ingresar a la app
     LaunchedEffect(Unit) {
@@ -381,6 +401,7 @@ fun MainHomeScreen(
                         }
                     },
                     onProfileClick = { selectedTab = HomeBottomTab.PROFILE },
+                    onHelpClick = { isProTutorialActive = true },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 10.dp)
@@ -538,6 +559,27 @@ fun MainHomeScreen(
                 onDismiss = { showStreakInfoDialog = false }
             )
         }
+
+        // Minitutorial interactivo tipo Spotlight al iniciar por primera vez
+        // Oscurece la pantalla entera para darle prioridad al toggle superior y mostrar cómo pasar a Modo PRO
+        if (isProTutorialActive) {
+            ProModeTutorialOverlay(
+                isGameMode = isGameMode,
+                onToggleMode = { newMode ->
+                    val switchingToPro = isGameMode && !newMode
+                    isGameMode = newMode
+                    ProModeTutorialManager.markTutorialSeen(context)
+                    isProTutorialActive = false
+                    if (switchingToPro) {
+                        showProInfoDialog = true
+                    }
+                },
+                onDismiss = {
+                    ProModeTutorialManager.markTutorialSeen(context)
+                    isProTutorialActive = false
+                }
+            )
+        }
     }
 }
 
@@ -551,6 +593,7 @@ private fun HomeHeaderRow(
     isGameMode: Boolean,
     onToggleMode: (Boolean) -> Unit,
     onProfileClick: () -> Unit = {},
+    onHelpClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val greetingTextColor = if (isGameMode) Color(0xFF1E2229) else Color.White
@@ -615,11 +658,32 @@ private fun HomeHeaderRow(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // LADO DERECHO: Toggle GAME / PRO
-        GameTrainToggle(
-            isGameMode = isGameMode,
-            onToggle = onToggleMode
-        )
+        // LADO DERECHO: Toggle GAME / PRO + Botón de ayuda/tutorial
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            GameTrainToggle(
+                isGameMode = isGameMode,
+                onToggle = onToggleMode
+            )
+
+            if (onHelpClick != null) {
+                IconButton(
+                    onClick = onHelpClick,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("home_pro_tutorial_help_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Tutorial de Modo PRO",
+                        tint = if (isGameMode) Color(0xFF64748B) else Color(0xFF94A3B8),
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -771,8 +835,8 @@ private fun HomeImageBanner(
             .testTag("home_image_banner"),
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.banner1),
+        AsyncImage(
+            model = R.drawable.banner1,
             contentDescription = "Banner Publicitario",
             contentScale = ContentScale.FillWidth,
             modifier = Modifier
@@ -961,8 +1025,8 @@ private fun SingleHeroWorkoutCard(
         val grayscaleFilter = remember {
             ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.05f) })
         }
-        Image(
-            painter = painterResource(id = slide.imageResId),
+        AsyncImage(
+            model = slide.imageResId,
             contentDescription = slide.drillName,
             modifier = Modifier
                 .fillMaxWidth()

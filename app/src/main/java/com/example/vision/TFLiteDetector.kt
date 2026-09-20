@@ -42,9 +42,12 @@ class TFLiteDetector(private val context: Context) {
     private val pixelValues = IntArray(INPUT_SIZE * INPUT_SIZE)
 
     init {
-        loadModel()
+        Thread({
+            loadModel()
+        }, "TFLiteDetector-Init").start()
     }
 
+    @Synchronized
     private fun loadModel() {
         try {
             val assetFileDescriptor = context.assets.openFd(MODEL_PATH)
@@ -60,12 +63,17 @@ class TFLiteDetector(private val context: Context) {
                 setUseXNNPACK(true)
                 setUseNNAPI(false)
             }
-            interpreter = Interpreter(modelBuffer, options)
-            isModelLoaded = true
+            val loadedInterpreter = Interpreter(modelBuffer, options)
+            synchronized(this) {
+                interpreter = loadedInterpreter
+                isModelLoaded = true
+            }
             Log.i(TAG, "TFLite model successfully loaded from assets: $MODEL_PATH with $numCores threads")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load TFLite model: ${e.message}", e)
-            isModelLoaded = false
+            synchronized(this) {
+                isModelLoaded = false
+            }
         }
     }
 

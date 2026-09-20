@@ -97,8 +97,8 @@ fun UserAvatarImage(
         when {
             // Preset manual seleccionado (chico o chica)
             presetDrawable != null -> {
-                Image(
-                    painter = painterResource(id = presetDrawable),
+                AsyncImage(
+                    model = presetDrawable,
                     contentDescription = "Avatar de $displayName",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -133,8 +133,8 @@ fun UserAvatarImage(
             }
             // Fallback por defecto (avatarchico o avatarchica)
             else -> {
-                Image(
-                    painter = painterResource(id = fallbackDrawable),
+                AsyncImage(
+                    model = fallbackDrawable,
                     contentDescription = "Avatar de $displayName",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

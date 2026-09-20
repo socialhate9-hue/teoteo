@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -293,8 +294,8 @@ fun BattleGameScreen(
                                                     .size(72.dp)
                                                     .clip(RoundedCornerShape(12.dp))
                                             ) {
-                                                Image(
-                                                    painter = painterResource(id = drill.imageResId),
+                                                AsyncImage(
+                                                    model = drill.imageResId,
                                                     contentDescription = drill.title,
                                                     modifier = Modifier.fillMaxSize(),
                                                     contentScale = ContentScale.Crop
@@ -1099,8 +1100,8 @@ fun BattleGameScreen(
                                             .size(60.dp)
                                             .clip(RoundedCornerShape(10.dp))
                                     ) {
-                                        Image(
-                                            painter = painterResource(id = wizardState.selectedDrill.imageResId),
+                                        AsyncImage(
+                                            model = wizardState.selectedDrill.imageResId,
                                             contentDescription = wizardState.selectedDrill.title,
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
@@ -1700,8 +1701,8 @@ private fun BattleHeroBanner(totalWins: Int) {
                 .fillMaxWidth()
                 .height(130.dp)
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.banner1),
+            AsyncImage(
+                model = R.drawable.banner1,
                 contentDescription = "Battle Banner",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
