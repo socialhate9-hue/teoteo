@@ -4,8 +4,11 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -38,6 +41,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.rememberLottieAnimatable
+import com.airbnb.lottie.compose.rememberLottieComposition
 import android.net.Uri
 import android.widget.Toast
 import android.content.ClipData
@@ -100,13 +107,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -225,10 +236,10 @@ fun FullProfileScreen(
             ProfileAchievement(
                 id = "first_100_xp",
                 titleEs = "PRIMEROS PASOS",
-                descriptionEs = "CONSIGUE TUS PRIMEROS 100 XP EN CUALQUIER MODO DE JUEGO.",
+                descriptionEs = "CONSIGUE TUS PRIMEROS 100 HIPE EN CUALQUIER MODO DE JUEGO.",
                 xpReward = 100,
                 isUnlocked = { stats, _ -> stats.totalXp >= 100 },
-                progressText = { stats, _ -> "${stats.totalXp.coerceAtMost(100)} / 100 XP" }
+                progressText = { stats, _ -> "${stats.totalXp.coerceAtMost(100)} / 100 HIPE" }
             ),
             ProfileAchievement(
                 id = "1st_place",
@@ -272,10 +283,10 @@ fun FullProfileScreen(
             ProfileAchievement(
                 id = "court_clout",
                 titleEs = "FAMA EN LA CANCHA",
-                descriptionEs = "ALCANZA EL RANGO PRO SUPERANDO LOS 250 XP TOTALES.",
+                descriptionEs = "ALCANZA EL RANGO PRO SUPERANDO LOS 250 HIPE TOTALES.",
                 xpReward = 150,
                 isUnlocked = { stats, _ -> stats.totalXp >= 250 },
-                progressText = { stats, _ -> "${stats.totalXp.coerceAtMost(250)} / 250 XP" }
+                progressText = { stats, _ -> "${stats.totalXp.coerceAtMost(250)} / 250 HIPE" }
             ),
             ProfileAchievement(
                 id = "defend_iron",
@@ -383,10 +394,10 @@ fun FullProfileScreen(
             // ==========================================
             when (selectedTab) {
                 0 -> {
-                    // Pestaña 1: LOGROS (Escudos interactivos con giro 3D)
+                    // Pestaña 1: LOGROS (Monedas de baloncesto interactivas con giro 3D)
                     items(achievements, key = { it.id }, span = { GridItemSpan(1) }) { achievement ->
                         val unlocked = achievement.isUnlocked(playerStats, savedVideos)
-                        ProfileAchievementShieldCard(
+                        ProfileAchievementCoinCard(
                             achievement = achievement,
                             isUnlocked = unlocked,
                             progressText = achievement.progressText(playerStats, savedVideos)
@@ -929,187 +940,566 @@ private fun ProfileTabsRow(
 }
 
 /**
- * Tarjeta individual de Logro / Escudo con animación 3D de giro (Flip Card)
- * y cambio de color destacado cuando se consigue.
+ * Cara Frontal de la Moneda de la Animación.
+ * Reproduce exactamente el diseño del archivo:
+ * - Moneda circular metálica con bisel exterior y aro interior ranurado.
+ * - Estrella central de 5 puntas con las curvas de Bézier exactas del archivo original.
+ * - Relieve facetado 3D (chiseled bevel) idéntico a las capas del diseño.
+ * - Destellos de luz y estrellas de brillo en diamante.
+ * - En gris metálico pulido cuando el logro no está conseguido.
+ * - En dorado brillante cuando el logro está conseguido.
  */
 @Composable
-private fun ProfileAchievementShieldCard(
+private fun StarCoinFrontFace(
+    isUnlocked: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val diameter = size.minDimension
+        val radius = diameter / 2f
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val s = radius / 100f // Factor de escala para reproducir las coordenadas exactas del archivo (radio 100)
+
+        // 1. Bisel exterior de la moneda (Aro exterior con degradado metálico de alto contraste)
+        val outerRimBrush = if (isUnlocked) {
+            Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFFFFFBEB), // Reflejo blanco-dorado luminoso
+                    Color(0xFFFCD34D), // Oro brillante
+                    Color(0xFFF59E0B), // Oro cálido
+                    Color(0xFFB45309), // Bronce perimetral
+                    Color(0xFF78350F), // Sombra inferior profunda
+                    Color(0xFFFCD34D)
+                ),
+                start = Offset(center.x - radius, center.y - radius),
+                end = Offset(center.x + radius, center.y + radius)
+            )
+        } else {
+            Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFFFFFFFF), // Reflejo blanco puro cromado
+                    Color(0xFFE2E8F0), // Plata pulida
+                    Color(0xFF94A3B8), // Acero medio
+                    Color(0xFF475569), // Acero oscuro
+                    Color(0xFF1E293B), // Sombra titanio profunda
+                    Color(0xFFCBD5E1)
+                ),
+                start = Offset(center.x - radius, center.y - radius),
+                end = Offset(center.x + radius, center.y + radius)
+            )
+        }
+        drawCircle(
+            brush = outerRimBrush,
+            radius = radius,
+            center = center
+        )
+
+        // 2. Anillo interior ranurado (Canal grabado con relieve de profundidad)
+        val innerGrooveColor = if (isUnlocked) Color(0xFF92400E) else Color(0xFF334155)
+        drawCircle(
+            color = innerGrooveColor,
+            radius = radius * 0.82f,
+            center = center,
+            style = Stroke(width = radius * 0.038f)
+        )
+
+        // 3. Disco central de la moneda (Placa interna con degradado radial y foco superior)
+        val innerPlateRadius = radius * 0.80f
+        val plateBrush = if (isUnlocked) {
+            Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFFFEF08A), // Centro dorado luminoso
+                    Color(0xFFF59E0B), // Oro saturado
+                    Color(0xFFD97706)  // Sombra perimetral cálida
+                ),
+                center = Offset(center.x - radius * 0.15f, center.y - radius * 0.20f),
+                radius = innerPlateRadius * 1.25f
+            )
+        } else {
+            Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFFFFFFFF), // Reflejo blanco plateado
+                    Color(0xFFCBD5E1), // Gris metálico neutro
+                    Color(0xFF64748B)  // Sombra titanio perimetral
+                ),
+                center = Offset(center.x - radius * 0.15f, center.y - radius * 0.20f),
+                radius = innerPlateRadius * 1.25f
+            )
+        }
+        drawCircle(
+            brush = plateBrush,
+            radius = innerPlateRadius,
+            center = center
+        )
+
+        // 4. Estrella central de 5 puntas (Curvas de Bézier exactas del archivo After Effects)
+        val starPath = Path().apply {
+            moveTo(center.x + 6.631f * s, center.y - 53.02f * s)
+            lineTo(center.x + 18.62f * s, center.y - 28.727f * s)
+            cubicTo(
+                center.x + (18.62f + 0.773f) * s, center.y + (-28.727f + 1.567f) * s,
+                center.x + (22.618f - 1.73f) * s, center.y + (-25.822f - 0.251f) * s,
+                center.x + 22.618f * s, center.y - 25.822f * s
+            )
+            lineTo(center.x + 49.428f * s, center.y - 21.926f * s)
+            cubicTo(
+                center.x + (49.428f + 2.178f) * s, center.y + (-21.926f + 0.316f) * s,
+                center.x + (50.899f + 1.576f) * s, center.y + (-17.398f - 1.536f) * s,
+                center.x + 50.899f * s, center.y - 17.398f * s
+            )
+            lineTo(center.x + 31.5f * s, center.y + 1.512f * s)
+            cubicTo(
+                center.x + (31.5f - 1.251f) * s, center.y + (1.512f + 1.22f) * s,
+                center.x + (29.973f - 0.295f) * s, center.y + (6.212f - 1.723f) * s,
+                center.x + 29.973f * s, center.y + 6.212f * s
+            )
+            lineTo(center.x + 34.552f * s, center.y + 32.913f * s)
+            cubicTo(
+                center.x + (34.552f + 0.372f) * s, center.y + (32.913f + 2.169f) * s,
+                center.x + (30.7f + 1.948f) * s, center.y + (35.712f + 1.024f) * s,
+                center.x + 30.7f * s, center.y + 35.712f * s
+            )
+            lineTo(center.x + 6.721f * s, center.y + 23.105f * s)
+            cubicTo(
+                center.x + (6.721f - 1.547f) * s, center.y + (23.105f - 0.813f) * s,
+                center.x + (1.779f + 1.547f) * s, center.y + (23.105f - 0.813f) * s,
+                center.x + 1.779f * s, center.y + 23.105f * s
+            )
+            lineTo(center.x - 22.2f * s, center.y + 35.712f * s)
+            cubicTo(
+                center.x + (-22.2f - 1.948f) * s, center.y + (35.712f + 1.024f) * s,
+                center.x + (-26.052f - 0.372f) * s, center.y + (32.913f + 2.169f) * s,
+                center.x - 26.052f * s, center.y + 32.913f * s
+            )
+            lineTo(center.x - 21.473f * s, center.y + 6.212f * s)
+            cubicTo(
+                center.x + (-21.473f + 0.295f) * s, center.y + (6.212f - 1.723f) * s,
+                center.x + (-23.0f + 1.251f) * s, center.y + (1.512f + 1.22f) * s,
+                center.x - 23.0f * s, center.y + 1.512f * s
+            )
+            lineTo(center.x - 42.399f * s, center.y - 17.398f * s)
+            cubicTo(
+                center.x + (-42.399f - 1.576f) * s, center.y + (-17.398f - 1.536f) * s,
+                center.x + (-40.928f - 2.178f) * s, center.y + (-21.926f + 0.316f) * s,
+                center.x - 40.928f * s, center.y - 21.926f * s
+            )
+            lineTo(center.x - 14.118f * s, center.y - 25.822f * s)
+            cubicTo(
+                center.x + (-14.118f + 1.73f) * s, center.y + (-25.822f - 0.251f) * s,
+                center.x + (-10.12f - 0.773f) * s, center.y + (-28.727f + 1.567f) * s,
+                center.x - 10.12f * s, center.y - 28.727f * s
+            )
+            lineTo(center.x + 1.869f * s, center.y - 53.02f * s)
+            cubicTo(
+                center.x + (1.869f + 0.974f) * s, center.y + (-53.02f - 1.973f) * s,
+                center.x + (6.631f - 0.974f) * s, center.y + (-53.02f - 1.973f) * s,
+                center.x + 6.631f * s, center.y - 53.02f * s
+            )
+            close()
+        }
+
+        // Relleno de la estrella con degradado vertical luminoso
+        val starBrush = if (isUnlocked) {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFFFFBEB), // Cúspide luminosa
+                    Color(0xFFFBBF24), // Oro ámbar
+                    Color(0xFFF59E0B)  // Base dorada profunda
+                ),
+                startY = center.y - 55f * s,
+                endY = center.y + 36f * s
+            )
+        } else {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFFFFFFF), // Cúspide blanca cromada
+                    Color(0xFFE2E8F0), // Plata brillante
+                    Color(0xFF94A3B8)  // Base gris acero
+                ),
+                startY = center.y - 55f * s,
+                endY = center.y + 36f * s
+            )
+        }
+        drawPath(starPath, brush = starBrush)
+
+        // Borde fino de realce para la estrella
+        drawPath(
+            starPath,
+            color = if (isUnlocked) Color(0xFFFEF08A).copy(alpha = 0.8f) else Color.White.copy(alpha = 0.7f),
+            style = Stroke(width = radius * 0.015f)
+        )
+
+        // 5. Facetas de sombra en relieve 3D (Idénticas a la capa "nm: 5" del archivo)
+        val facetShadowColor = if (isUnlocked) Color(0xFFB45309).copy(alpha = 0.75f) else Color(0xFF334155).copy(alpha = 0.75f)
+
+        // Faceta 1: Sombra brazo superior y transición
+        val facet1 = Path().apply {
+            moveTo(center.x - 38.428f * s, center.y - 19.426f * s)
+            lineTo(center.x - 11.619f * s, center.y - 23.322f * s)
+            lineTo(center.x - 7.62f * s, center.y - 26.227f * s)
+            lineTo(center.x + 4.369f * s, center.y - 50.52f * s)
+            lineTo(center.x + 7.161f * s, center.y - 51.946f * s)
+            lineTo(center.x + 6.631f * s, center.y - 53.02f * s)
+            lineTo(center.x + 1.869f * s, center.y - 53.02f * s)
+            lineTo(center.x - 10.12f * s, center.y - 28.727f * s)
+            lineTo(center.x - 14.119f * s, center.y - 25.822f * s)
+            lineTo(center.x - 40.928f * s, center.y - 21.926f * s)
+            lineTo(center.x - 42.399f * s, center.y - 17.398f * s)
+            lineTo(center.x - 40.093f * s, center.y - 15.149f * s)
+            close()
+        }
+        drawPath(facet1, color = facetShadowColor)
+
+        // Faceta 2: Sombra brazo inferior izquierdo
+        val facet2 = Path().apply {
+            moveTo(center.x - 23.552f * s, center.y + 35.413f * s)
+            lineTo(center.x - 18.973f * s, center.y + 8.712f * s)
+            lineTo(center.x - 20.5f * s, center.y + 4.012f * s)
+            lineTo(center.x - 22.767f * s, center.y + 1.802f * s)
+            lineTo(center.x - 21.473f * s, center.y + 6.212f * s)
+            lineTo(center.x - 26.052f * s, center.y + 32.913f * s)
+            lineTo(center.x - 23.568f * s, center.y + 36.006f * s)
+            close()
+        }
+        drawPath(facet2, color = facetShadowColor)
+
+        // Faceta 3: Sombra brazo derecho
+        val facet3 = Path().apply {
+            moveTo(center.x + 21.12f * s, center.y - 26.227f * s)
+            lineTo(center.x + 25.119f * s, center.y - 23.322f * s)
+            lineTo(center.x + 51.693f * s, center.y - 19.46f * s)
+            lineTo(center.x + 49.428f * s, center.y - 21.926f * s)
+            lineTo(center.x + 22.619f * s, center.y - 25.822f * s)
+            lineTo(center.x + 21.069f * s, center.y - 26.331f * s)
+            close()
+        }
+        drawPath(facet3, color = facetShadowColor)
+
+        // 6. Reflejo especular curvo en el cuadrante superior izquierdo del bisel
+        val highlightArc = Path().apply {
+            arcTo(
+                rect = Rect(
+                    center.x - radius * 0.92f,
+                    center.y - radius * 0.92f,
+                    center.x + radius * 0.92f,
+                    center.y + radius * 0.92f
+                ),
+                startAngleDegrees = -155f,
+                sweepAngleDegrees = 60f,
+                forceMoveTo = true
+            )
+        }
+        drawPath(
+            highlightArc,
+            color = Color.White.copy(alpha = if (isUnlocked) 0.85f else 0.75f),
+            style = Stroke(width = radius * 0.05f, cap = StrokeCap.Round)
+        )
+
+        // 7. Destello de brillo en forma de diamante (Sparkle Star superior derecha)
+        val sparkleColor = if (isUnlocked) Color(0xFFFFFBEB) else Color.White
+        val star1Pos = Offset(center.x + 48f * s, center.y - 48f * s)
+        val star1Size = 7.5f * s
+        val star1Path = Path().apply {
+            moveTo(star1Pos.x, star1Pos.y - star1Size)
+            quadraticBezierTo(star1Pos.x, star1Pos.y, star1Pos.x + star1Size, star1Pos.y)
+            quadraticBezierTo(star1Pos.x, star1Pos.y, star1Pos.x, star1Pos.y + star1Size)
+            quadraticBezierTo(star1Pos.x, star1Pos.y, star1Pos.x - star1Size, star1Pos.y)
+            quadraticBezierTo(star1Pos.x, star1Pos.y, star1Pos.x, star1Pos.y - star1Size)
+            close()
+        }
+        drawPath(star1Path, color = sparkleColor)
+
+        // Destello secundario inferior izquierdo
+        val star2Pos = Offset(center.x - 52f * s, center.y + 40f * s)
+        val star2Size = 5.5f * s
+        val star2Path = Path().apply {
+            moveTo(star2Pos.x, star2Pos.y - star2Size)
+            quadraticBezierTo(star2Pos.x, star2Pos.y, star2Pos.x + star2Size, star2Pos.y)
+            quadraticBezierTo(star2Pos.x, star2Pos.y, star2Pos.x, star2Pos.y + star2Size)
+            quadraticBezierTo(star2Pos.x, star2Pos.y, star2Pos.x - star2Size, star2Pos.y)
+            quadraticBezierTo(star2Pos.x, star2Pos.y, star2Pos.x, star2Pos.y - star2Size)
+            close()
+        }
+        drawPath(star2Path, color = sparkleColor.copy(alpha = 0.85f))
+    }
+}
+
+/**
+ * Cara Trasera de la Moneda.
+ * Diseñada con el mismo contorno circular metálico (gris si no está conseguido, dorado si lo está).
+ * Presenta de forma nítida y legible el reto, el progreso actual y la recompensa en HIPE.
+ */
+@Composable
+private fun StarCoinBackFace(
+    achievement: ProfileAchievement,
+    isUnlocked: Boolean,
+    progressText: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(
+                if (isUnlocked) {
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF78350F), // Ámbar oscuro
+                            Color(0xFF451A03), // Bronce oscuro
+                            Color(0xFF1E1006)  // Carbón cálido
+                        )
+                    )
+                } else {
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF334155), // Acero oscuro
+                            Color(0xFF1E293B), // Pizarra oscura
+                            Color(0xFF0F172A)  // Titanio oscuro
+                        )
+                    )
+                }
+            )
+            .border(
+                width = 3.5.dp,
+                brush = if (isUnlocked) {
+                    Brush.linearGradient(
+                        listOf(Color(0xFFFFFBEB), Color(0xFFF59E0B), Color(0xFFB45309), Color(0xFFFFFBEB))
+                    )
+                } else {
+                    Brush.linearGradient(
+                        listOf(Color(0xFFFFFFFF), Color(0xFF94A3B8), Color(0xFF475569), Color(0xFFCBD5E1))
+                    )
+                },
+                shape = CircleShape
+            )
+            .padding(10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        // Marca de agua sutil de la estrella en el fondo
+        Icon(
+            imageVector = Icons.Default.Star,
+            contentDescription = null,
+            tint = if (isUnlocked) Color(0xFFF59E0B).copy(alpha = 0.15f) else Color(0xFF94A3B8).copy(alpha = 0.10f),
+            modifier = Modifier.size(68.dp)
+        )
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Insignia superior
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (isUnlocked) Color(0xFFF59E0B).copy(alpha = 0.30f) else Color(0xFF94A3B8).copy(alpha = 0.25f),
+                border = BorderStroke(
+                    1.dp,
+                    if (isUnlocked) Color(0xFFFCD34D).copy(alpha = 0.7f) else Color(0xFFCBD5E1).copy(alpha = 0.5f)
+                ),
+                modifier = Modifier.padding(bottom = 4.dp)
+            ) {
+                Text(
+                    text = if (isUnlocked) "⭐ CONSEGUIDO" else "🎯 RETO",
+                    fontSize = 7.5.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (isUnlocked) Color(0xFFFDE047) else Color.White,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    letterSpacing = 0.5.sp
+                )
+            }
+
+            // Explicación detallada del reto
+            Text(
+                text = achievement.descriptionEs,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                lineHeight = 10.5.sp,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 2.dp)
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            // Progreso del reto
+            Text(
+                text = if (isUnlocked) "✅ ¡COMPLETADO!" else progressText,
+                fontSize = 7.5.sp,
+                fontWeight = FontWeight.Black,
+                color = if (isUnlocked) Color(0xFF4ADE80) else Color(0xFF38BDF8)
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            // Recompensa en HIPE
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (isUnlocked) Color(0xFFD97706) else Color(0xFF475569),
+                modifier = Modifier.padding(top = 1.dp)
+            ) {
+                Text(
+                    text = "+${achievement.xpReward} HIPE",
+                    fontSize = 7.5.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.5.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Tarjeta individual de Logro con la Moneda Interactiva.
+ * - Idéntica al archivo: en gris al no estar conseguido, en dorado al conseguirlo.
+ * - Al pulsar sobre la moneda, gira en 3D (1.5 vueltas completas con salto y rebote físico)
+ *   y muestra el reto detallado en el reverso.
+ * - Al pulsar de nuevo, vuelve a girar en 3D para regresar a la cara de la moneda.
+ * - Los textos inferiores se mantienen limpios (Título y HIPE) sin botones innecesarios.
+ */
+@Composable
+private fun ProfileAchievementCoinCard(
     achievement: ProfileAchievement,
     isUnlocked: Boolean,
     progressText: String
 ) {
     var isFlipped by remember { mutableStateOf(false) }
 
-    // Animación suave del giro en el eje Y (0° a 180°)
-    val rotationY by animateFloatAsState(
-        targetValue = if (isFlipped) 180f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "shield_flip_${achievement.id}"
-    )
+    val rotationY = remember { Animatable(0f) }
+    val jumpOffsetY = remember { Animatable(0f) }
+    val coinScale = remember { Animatable(1f) }
+    val shadowScale = remember { Animatable(1f) }
+    val shadowAlpha = remember { Animatable(0.40f) }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Colores: cuando está desbloqueado resalta con color brillante; si está bloqueado, plata/gris neutro
-    val shieldBaseGradient = if (isUnlocked) {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFFF59E0B), // Dorado ámbar brillante
-                Color(0xFFD97706),
-                Color(0xFFB45309)
-            )
-        )
-    } else {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFFF1F5F9), // Gris perla / plateado como en la captura
-                Color(0xFFE2E8F0),
-                Color(0xFFCBD5E1)
-            )
-        )
+    val onCoinClick: () -> Unit = {
+        val nextFlipped = !isFlipped
+        isFlipped = nextFlipped
+        coroutineScope.launch {
+            val targetRotation = if (nextFlipped) 540f else 0f
+            launch {
+                rotationY.animateTo(
+                    targetValue = targetRotation,
+                    animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing)
+                )
+            }
+            launch {
+                // Salto parabólico de la moneda en el aire con rebote al caer
+                jumpOffsetY.animateTo(-32f, animationSpec = tween(durationMillis = 280, easing = FastOutLinearInEasing))
+                jumpOffsetY.animateTo(0f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+            }
+            launch {
+                // Escala elástica en el aire
+                coinScale.animateTo(1.12f, animationSpec = tween(durationMillis = 280, easing = FastOutLinearInEasing))
+                coinScale.animateTo(0.95f, animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing))
+                coinScale.animateTo(1.0f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium))
+            }
+            launch {
+                // Reacción de la sombra en el suelo al salto
+                shadowScale.animateTo(0.70f, animationSpec = tween(durationMillis = 280))
+                shadowScale.animateTo(1.0f, animationSpec = tween(durationMillis = 350))
+            }
+            launch {
+                shadowAlpha.animateTo(0.12f, animationSpec = tween(durationMillis = 280))
+                shadowAlpha.animateTo(0.40f, animationSpec = tween(durationMillis = 350))
+            }
+        }
     }
 
-    val borderColor = if (isUnlocked) Color(0xFFFCD34D) else Color(0xFF94A3B8).copy(alpha = 0.5f)
+    val currentRot = rotationY.value
+    val normalizedAngle = ((currentRot % 360f) + 360f) % 360f
+    val isShowingBack = normalizedAngle in 90f..270f
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable { isFlipped = !isFlipped }
             .testTag("achievement_card_${achievement.id}"),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(width = 110.dp, height = 132.dp)
-                .graphicsLayer {
-                    this.rotationY = rotationY
-                    cameraDistance = 14f * density
-                },
+                .size(width = 110.dp, height = 126.dp)
+                .clickable(onClick = onCoinClick),
             contentAlignment = Alignment.Center
         ) {
-            if (rotationY <= 90f) {
-                // ==========================================
-                // CARA FRONTAL: ESCUDO VISUAL
-                // ==========================================
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .shadow(if (isUnlocked) 8.dp else 2.dp, ShieldShape)
-                        .clip(ShieldShape)
-                        .background(shieldBaseGradient)
-                        .border(2.dp, borderColor, ShieldShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Marca de agua central (rombo) o icono destacado
-                    if (isUnlocked) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = "Conseguido",
-                                tint = Color.White,
-                                modifier = Modifier.size(34.dp)
+            // Sombra en el suelo (Floor Drop-Shadow) reactiva al salto
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 2.dp)
+                    .width(76.dp * shadowScale.value)
+                    .height(14.dp * shadowScale.value)
+                    .graphicsLayer { alpha = shadowAlpha.value }
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                if (isUnlocked) Color(0xFFF59E0B).copy(alpha = 0.45f) else Color(0xFF0F172A).copy(alpha = 0.35f),
+                                Color.Transparent
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "¡CONSEGUIDO!",
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-                    } else {
-                        // Rombo central plateado idéntico a la captura
-                        Canvas(modifier = Modifier.size(24.dp)) {
-                            val w = size.width
-                            val h = size.height
-                            val path = androidx.compose.ui.graphics.Path().apply {
-                                moveTo(w / 2f, 0f)
-                                lineTo(w, h / 2f)
-                                lineTo(w / 2f, h)
-                                lineTo(0f, h / 2f)
-                                close()
-                            }
-                            drawPath(
-                                path = path,
-                                color = Color(0xFF94A3B8).copy(alpha = 0.5f),
-                                style = Stroke(width = 2.dp.toPx())
-                            )
-                            drawCircle(
-                                color = Color(0xFF94A3B8).copy(alpha = 0.7f),
-                                radius = 2.dp.toPx()
-                            )
-                        }
-                    }
-                }
-            } else {
-                // ==========================================
-                // CARA TRASERA (CUANDO SE GIRA): TEXTO DEL LOGRO
-                // ==========================================
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { this.rotationY = 180f } // Para que el texto no se vea invertido
-                        .shadow(if (isUnlocked) 6.dp else 2.dp, ShieldShape)
-                        .clip(ShieldShape)
-                        .background(if (isUnlocked) Color(0xFFFFFBEB) else Color(0xFFF8FAFC))
-                        .border(
-                            2.dp,
-                            if (isUnlocked) Color(0xFFF59E0B) else Color(0xFF94A3B8).copy(alpha = 0.5f),
-                            ShieldShape
-                        )
-                        .padding(horizontal = 8.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = achievement.descriptionEs,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Black,
-                            color = if (isUnlocked) Color(0xFF78350F) else Color(0xFF475569),
-                            textAlign = TextAlign.Center,
-                            lineHeight = 11.sp
-                        )
+                        ),
+                        shape = CircleShape
+                    )
+            )
 
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Progreso o estado
-                        Text(
-                            text = if (isUnlocked) "✅ Conseguido" else progressText,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isUnlocked) Color(0xFF059669) else Color(0xFF64748B)
-                        )
-                    }
+            // Moneda 3D interactiva con perspectiva real, salto y escala
+            Box(
+                modifier = Modifier
+                    .size(104.dp)
+                    .graphicsLayer {
+                        this.rotationY = currentRot
+                        this.translationY = jumpOffsetY.value * density
+                        this.scaleX = coinScale.value
+                        this.scaleY = coinScale.value
+                        cameraDistance = 14f * density
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                if (!isShowingBack) {
+                    // CARA FRONTAL: Moneda idéntica al archivo (Gris si bloqueado, Dorado si conseguido)
+                    StarCoinFrontFace(
+                        isUnlocked = isUnlocked,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .shadow(if (isUnlocked) 8.dp else 2.dp, CircleShape)
+                    )
+                } else {
+                    // CARA TRASERA: Explicación del reto (Gris si bloqueado, Dorado si conseguido)
+                    StarCoinBackFace(
+                        achievement = achievement,
+                        isUnlocked = isUnlocked,
+                        progressText = progressText,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { this.rotationY = 180f }
+                            .shadow(if (isUnlocked) 6.dp else 2.dp, CircleShape)
+                    )
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Título del logro en español
+        // Título del logro en español (se mantiene)
         Text(
             text = achievement.titleEs,
             fontSize = 11.sp,
             fontWeight = FontWeight.Black,
-            color = if (isUnlocked) Color(0xFFD97706) else Color(0xFF475569),
+            color = if (isUnlocked) Color(0xFFD97706) else Color(0xFF334155),
             textAlign = TextAlign.Center,
-            letterSpacing = 0.5.sp
+            letterSpacing = 0.5.sp,
+            modifier = Modifier.clickable(onClick = onCoinClick)
         )
 
-        // Puntos XP del logro
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // Puntos HIPE del logro (se mantiene y XP cambiado por HIPE)
         Text(
-            text = "${achievement.xpReward} XP",
+            text = "${achievement.xpReward} HIPE",
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (isUnlocked) Color(0xFFB45309) else Color(0xFF94A3B8),
+            color = if (isUnlocked) Color(0xFFB45309) else Color(0xFF64748B),
             textAlign = TextAlign.Center
         )
     }
